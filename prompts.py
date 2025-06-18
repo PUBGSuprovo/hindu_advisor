@@ -4,6 +4,8 @@ from langchain.prompts import PromptTemplate
 
 # --- RAG Prompt Template (for Hindu Scriptures) ---
 
+# Note: This prompt now explicitly mentions the variables from query analysis,
+# which are passed in the chain.invoke call in fastapi_app.py
 scripture_prompt = PromptTemplate.from_template("""
 You are an AI assistant specialized in Hindu scriptures and spiritual guidance.
 Based on the following conversation history and the user's query, provide a simple, practical, and culturally relevant answer or guidance.
@@ -30,14 +32,16 @@ Guidance based on Hindu Scripture (Tailored for {spiritual_concept}, {life_probl
 merge_prompt_template_default = """
 You are a Hindu scripture and spiritual guidance assistant.
 Your goal is to synthesize information from a primary RAG-based answer and several other AI suggestions into a single, coherent, and practical guidance or answer for **{life_problem}**, referencing **{spiritual_concept}** from **{scripture_source}** if specified.
-Prioritize the Primary RAG Answer. If it's weak or irrelevant, use Additional Suggestions to enrich or provide alternatives.
-Ensure the final guidance is clear, actionable, and respectful of Hindu traditions. Present as a clear paragraph or a list of points.
-If the user's input was *only* a greeting, respond politely (e.g., "Namaste! How can I assist you with Hindu scriptures today?"). For inputs that include a greeting but also contain a query, focus on answering the query.
+Prioritize the Primary RAG Answer. If it's weak or irrelevant, use Additional Suggestions.
+Ensure the final guidance is clear, actionable, and respectful of Hindu traditions.
+Present the final guidance as a clear, actionable paragraph or list.
+
+If the user's input was *only* a greeting, respond politely. For inputs that include a greeting but also contain a query, focus on answering the query.
 
 Primary RAG Answer:
 {rag}
 
-Additional Suggestions (consider these, but prioritize the RAG answer):
+Additional Suggestions:
 - LLaMA Suggestion: {llama}
 - Mixtral Suggestion: {mixtral}
 - Gemma Suggestion: {gemma}
@@ -50,18 +54,17 @@ merge_prompt_default = PromptTemplate.from_template(merge_prompt_template_defaul
 merge_prompt_template_table = """
 You are a Hindu scripture and spiritual guidance assistant.
 Your goal is to synthesize information from a primary RAG-based answer and several other AI suggestions into a single, coherent, and practical guidance or answer for **{life_problem}**, referencing **{spiritual_concept}** from **{scripture_source}** if specified.
-Prioritize the Primary RAG Answer. If it's weak or irrelevant, use Additional Suggestions to enrich or provide alternatives.
+Prioritize the Primary RAG Answer. If it's weak or irrelevant, use Additional Suggestions.
 Ensure the final guidance is clear, actionable, and respectful of Hindu traditions.
 
-**You MUST present the final guidance as a clear markdown table if appropriate. Include columns for 'Spiritual Concept/Teaching', 'Scripture Reference/Source', and 'Practical Application/Guidance'. If a direct scripture reference isn't available, mention 'General Hindu Wisdom'.**
-If the information doesn't naturally fit into a table, clearly state why and present it in a well-structured paragraph format.
+**You MUST present the final guidance as a clear markdown table if appropriate. Include columns for Concept/Teaching, Scripture Reference, and Practical Application.**
 
-If the user's input was *only* a greeting, respond politely (e.g., "Namaste! How can I assist you with Hindu scriptures today?"). For inputs that include a greeting but also contain a query, focus on answering the query.
+If the user's input was *only* a greeting, respond politely. For inputs that include a greeting but also contain a query, focus on answering the query.
 
 Primary RAG Answer:
 {rag}
 
-Additional Suggestions (consider these, but prioritize the RAG answer):
+Additional Suggestions:
 - LLaMA Suggestion: {llama}
 - Mixtral Suggestion: {mixtral}
 - Gemma Suggestion: {gemma}

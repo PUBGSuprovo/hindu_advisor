@@ -1,9 +1,14 @@
+# init_embeddings.py
 import os
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import Chroma
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_google_genai import GoogleGenerativeAIEmbeddings # Changed import
 from langchain.text_splitter import CharacterTextSplitter
-import logging # Import logging
+import logging
+import google.generativeai as genai # Needed for genai.configure
+from dotenv import load_dotenv # For local environment variables
+
+load_dotenv() # Load .env file for local development
 
 # Configure logging for this script
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -42,10 +47,17 @@ def main():
     Main function to load PDFs, split them into chunks, generate embeddings,
     and persist the vector store using ChromaDB.
     """
-    pdf_dir = "pdfs" # Directory where your PDF files are located
-    output_dir = "db" # Directory where the ChromaDB will be stored
+    pdf_dir = "pdfs"
+    output_dir = "db"
 
-    # Create output directory if it doesn't exist
+    gemini_api_key = os.getenv("GEMINI_API_KEY")
+    if not gemini_api_key:
+        logging.critical("GEMINI_API_KEY is not set. Please set it in your environment or .env file.")
+        return
+
+    # Configure Gemini for embedding initialization
+    genai.configure(api_key=gemini_api_key)
+
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
         logging.info(f"Created output directory: '{output_dir}'")
@@ -57,8 +69,6 @@ def main():
         logging.error("No documents to process. Exiting.")
         return
 
-    # Split text into smaller, manageable chunks for RAG
-    # Adjust chunk_size and chunk_overlap based on your document characteristics and model's context window
     splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     chunks = splitter.split_documents(raw_docs)
     logging.info(f"📚 Total chunks after splitting: {len(chunks)}")
@@ -67,23 +77,15 @@ def main():
         logging.error("No chunks generated from documents. Check splitter configuration or document content. Exiting.")
         return
 
-    # Initialize embedding model
-    # 'all-MiniLM-L6-v2' is a good balance of performance and size
     try:
-        embedding = HuggingFaceEmbeddings(
-            model_name="all-MiniLM-L6-v2",
-            model_kwargs={"device": "cpu"}, # Use "cuda" if a GPU is available for faster embedding
-            encode_kwargs={'normalize_embeddings': True} # Normalizing embeddings is often beneficial
-        )
-        logging.info("Initialized HuggingFaceEmbeddings model: all-MiniLM-L6-v2")
+        embedding = GoogleGenerativeAIEmbeddings(model="embedding-001", google_api_key=gemini_api_key) # Changed here
+        logging.info("Initialized GoogleGenerativeAIEmbeddings model: embedding-001")
     except Exception as e:
         logging.critical(f"Failed to initialize embedding model: {e}. Exiting.")
         return
 
-    # Create and persist the vector store in ChromaDB
     logging.info(f"Creating and persisting vector store in '{output_dir}'...")
     try:
-        # Chroma.from_documents creates the database, adds documents, and persists it
         Chroma.from_documents(
             documents=chunks,
             embedding=embedding,

@@ -21,5 +21,6 @@ psycopg2-binary
 gdown
 pdfminer.six
 requests
+huggingface_hub
 aiofiles
 langchain-google-sheets-chat-message-history

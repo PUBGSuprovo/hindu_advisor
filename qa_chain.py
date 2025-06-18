@@ -8,7 +8,7 @@ from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_core.language_models import BaseChatModel
 from langchain_core.vectorstores import VectorStoreRetriever
 from langchain_core.messages import AIMessage, HumanMessage, BaseMessage # For message types
-from prompts import scripture_prompt, merge_prompt_default, merge_prompt_table
+from prompts import scripture_prompt, merge_prompt_default, merge_prompt_table # Import merge prompts
 import logging
 import gspread # For Google Sheets interaction
 from google.oauth2 import service_account
@@ -16,7 +16,8 @@ import json
 import os
 
 # Define the sheet and credentials globally for the class
-SPREADSHEET_ID = "1MS-6RNx8N0uKnOzunyVNjBFiSUysibCdS8HBk_uyYik" # Your provided spreadsheet ID
+# IMPORTANT: Replace with your actual Google Sheet ID
+SPREADSHEET_ID = "1MS-6RNx8N0uKnOzunyVNjBFiSUysibCdS8HBk_uyYik"
 
 class GoogleSheetChatMessageHistory(BaseChatMessageHistory):
     """Chat message history stored in a Google Sheet."""
@@ -61,14 +62,13 @@ class GoogleSheetChatMessageHistory(BaseChatMessageHistory):
             logging.critical(f"Error accessing or creating worksheet: {e}")
             raise
 
-
     @property
     def messages(self) -> list[BaseMessage]:
         """Retrieve all messages from the Google Sheet for the current session."""
         rows = self.sheet.get_all_values()
-        if not rows or len(rows) <= 1: # Skip header row
+        if not rows or len(rows) <= 1: # Skip header row if only headers exist
             return []
-        
+            
         messages = []
         for row in rows[1:]: # Start from the second row to skip headers
             if len(row) >= 4: # Ensure row has enough columns
@@ -111,8 +111,6 @@ def get_session_history(session_id: str, credentials_json: str) -> GoogleSheetCh
     Factory function to get or create a GoogleSheetChatMessageHistory instance.
     The credentials_json will be passed from FastAPI app.
     """
-    # In a real-world scenario, you might want to cache these instances if performance is an issue
-    # But for simplicity and to ensure fresh auth, we create one per request.
     logging.info(f"Requesting session history for session ID: {session_id}")
     return GoogleSheetChatMessageHistory(session_id, credentials_json)
 

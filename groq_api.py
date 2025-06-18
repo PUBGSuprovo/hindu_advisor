@@ -2,14 +2,11 @@
 import requests
 import logging
 from concurrent.futures import ThreadPoolExecutor
-# import streamlit as st # REMOVED DIRECT ST.SECRETS ACCESS
-
-# GROQ_API_KEY is now expected to be passed as an argument to the functions
 
 def groq_scripture_answer(
     model_name: str,
     query: str,
-    groq_api_key: str, # ADDED API KEY AS A PARAMETER
+    groq_api_key: str,
     spiritual_concept: str = "general",
     life_problem: str = "guidance",
     scripture_source: str = "Hindu scriptures"
@@ -74,7 +71,7 @@ def groq_scripture_answer(
 
 def cached_groq_answers(
     query: str,
-    groq_api_key: str, # ADDED API KEY AS A PARAMETER
+    groq_api_key: str,
     spiritual_concept: str,
     life_problem: str,
     scripture_source: str

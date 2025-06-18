@@ -18,7 +18,7 @@ def init_gemini_llm(api_key: str):
         logging.error("Gemini API Key is missing. Cannot initialize Gemini LLM.")
         raise ValueError("GEMINI_API_KEY must be provided to initialize Gemini LLM.")
     try:
-        genai.configure(api_key=api_key)
+        genai.configure(api_key=api_key) # Configure the global genai client
         # Using gemini-1.5-flash for faster responses, temperature for creativity
         return GoogleGenerativeAI(model="gemini-1.5-flash", google_api_key=api_key, temperature=0.5)
     except Exception as e:
@@ -39,7 +39,9 @@ def init_embeddings(api_key: str): # Modified to accept API key
         logging.error("Gemini API Key is missing. Cannot initialize Gemini Embeddings.")
         raise ValueError("GEMINI_API_KEY must be provided to initialize Gemini Embeddings.")
     try:
-        return GoogleGenerativeAIEmbeddings(model="embedding-001", google_api_key=api_key)
+        genai.configure(api_key=api_key) # Ensure genai is configured before creating embeddings
+        return GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=api_key)
     except Exception as e:
         logging.error(f"Error initializing Gemini Embeddings: {e}")
         raise
+

@@ -1,25 +1,49 @@
-streamlit
-openai
-python-dotenv
-langchain
-langchain-google-genai
-chromadb
-sentence-transformers
-tqdm
-typing-extensions
-concurrent-log-handler
-torch
-transformers
-pypdf
-langchain-community
-google-generativeai
-gunicorn
-itsdangerous
-gspread
-oauth2client
-psycopg2-binary
-gdown
-pdfminer.six
-requests
-huggingface_hub
-aiofiles
+# --- Core Framework ---
+fastapi==0.111.0
+uvicorn==0.30.1
+pydantic==2.7.4 # Ensure pydantic is compatible with FastAPI
+starlette==0.37.2 # Explicitly add starlette for SessionMiddleware if not already included by FastAPI/Uvicorn
+python-dotenv==1.0.1
+
+# --- HTTP ---
+requests==2.31.0
+
+# --- LangChain Ecosystem ---
+langchain==0.2.5
+langchain-community==0.2.5
+langchain-core==0.2.10
+langchain-google-genai==0.2.5 # Or latest stable, 0.2.5 is current as of recent checks
+
+# --- Embeddings & Vector DB ---
+chromadb==0.5.3
+# REMOVED: huggingface_hub is not needed for direct zip download in fastapi_app.py
+# REMOVED: sentence-transformers is not needed as we are using Gemini Embeddings
+
+# --- Google GenAI SDK (explicitly listed for clarity) ---
+google-generativeai==0.3.2
+
+# --- Google Sheets Integration (from your old code) ---
+gspread==6.0.0
+oauth2client==4.0.0 # From your old code, ensure compatibility if issues arise with newer Python
+google-auth-oauthlib==1.2.0 # More modern auth libs are good to keep
+google-api-python-client==2.131.0
+google-auth==2.30.0
+
+# --- PDF Loading (if you still process PDFs for initial DB creation) ---
+pypdf==4.2.0
+
+# --- Utilities (ensure these are needed/used) ---
+tqdm==4.66.2
+typing-extensions>=4.5.0
+
+# Other packages found in your provided old requirements.txt, ensure if they are actually used
+# openai # If you don't use OpenAI API, remove this
+# concurrent-log-handler # If you don't use this specific logging handler, remove
+# torch # If not using any PyTorch models directly, remove this (embeddings use it, but might be transitive)
+# transformers # If not loading transformer models directly, remove this (embeddings use it, but might be transitive)
+# gunicorn # Only needed if using gunicorn as a WSGI server, Uvicorn is sufficient for ASGI FastAPI
+# itsdangerous # Often a dependency of Flask/Jinja, check if used directly
+# psycopg2-binary # For PostgreSQL, remove if not using
+# gdown # For downloading from Google Drive, remove if not using
+# pdfminer.six # Alternative PDF parser, remove if PyPDFLoader is sufficient
+# aiofiles # For async file operations, check if used directly

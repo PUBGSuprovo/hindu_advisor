@@ -22,3 +22,4 @@ gdown
 pdfminer.six
 requests
 aiofiles
+langchain-google-sheets-chat-message-history

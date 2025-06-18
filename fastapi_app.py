@@ -4,11 +4,11 @@ from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel
 import logging
 import os # Import os for environment variables
-# from config import GROQ_API_KEY # REMOVED: GROQ_API_KEY will now be from os.getenv
 from llms import init_gemini_llm, init_embeddings
 from vector_db import load_chroma_db
 # Corrected import for merge_groq_and_rag_answers and GoogleSheetChatMessageHistory
-from qa_chain import create_conversational_chain
+# Now only import functions/classes directly used by fastapi_app from qa_chain
+from qa_chain import create_conversational_chain, get_session_history # get_session_history is now imported here
 from utils import (
     extract_spiritual_concept,
     extract_life_problem,
@@ -16,7 +16,7 @@ from utils import (
     clean_response_text,
     clean_suggestions,
     contains_table_request,
-    merge_groq_and_rag_answers # MODIFIED: Imported from utils
+    merge_groq_and_rag_answers
 )
 from groq_api import cached_groq_answers
 import uuid
@@ -39,7 +39,7 @@ class ChatRequest(BaseModel):
 
 # Retrieve API keys and Google Sheet credentials from environment variables
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY") # MODIFIED: Get GROQ_API_KEY from environment
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GOOGLE_CREDENTIALS_JSON = os.getenv("GOOGLE_CREDENTIALS_JSON")
 
 if not GEMINI_API_KEY:
@@ -64,12 +64,11 @@ async def handle_chat(request: ChatRequest):
             raise HTTPException(status_code=500, detail="Gemini API Key is not set.")
         
         llm = init_gemini_llm(GEMINI_API_KEY)
-        embedding = init_embeddings() # MODIFIED: init_embeddings does not take an API key
+        embedding = init_embeddings()
         db = load_chroma_db(embedding)
         retriever = db.as_retriever(search_kwargs={"k": 5})
         
         # Create conversational chain, passing Google Sheet credentials
-        # MODIFIED: create_conversational_chain now correctly takes google_credentials_json
         conversational_qa_chain = create_conversational_chain(llm, retriever, GOOGLE_CREDENTIALS_JSON)
         
         # Extract metadata from query
@@ -79,7 +78,7 @@ async def handle_chat(request: ChatRequest):
 
         # Get RAG result
         logging.info(f"Session {session_id}: Invoking RAG chain for query: '{effective_query}'")
-        rag_result = await conversational_qa_chain.ainvoke({ # Use ainvoke for async
+        rag_result = await conversational_qa_chain.ainvoke({
             "question": effective_query,
             "spiritual_concept": spiritual_concept,
             "life_problem": life_problem,
@@ -139,8 +138,8 @@ async def get_chat_history_endpoint(session_id: str):
     try:
         if not GOOGLE_CREDENTIALS_JSON:
             raise HTTPException(status_code=500, detail="Google Credentials JSON not set for history.")
-        # Instantiate history object with credentials
-        history = GoogleSheetChatMessageHistory(session_id, GOOGLE_CREDENTIALS_JSON)
+        # MODIFIED: Use get_session_history from qa_chain.py
+        history = get_session_history(session_id, GOOGLE_CREDENTIALS_JSON)
         messages = []
         for message in history.messages:
             content = clean_response_text(message.content) if hasattr(message, 'content') else str(message)
@@ -164,8 +163,8 @@ async def clear_session(session_id: str):
     try:
         if not GOOGLE_CREDENTIALS_JSON:
             raise HTTPException(status_code=500, detail="Google Credentials JSON not set for history.")
-        # Instantiate history object and clear
-        history = GoogleSheetChatMessageHistory(session_id, GOOGLE_CREDENTIALS_JSON)
+        # MODIFIED: Use get_session_history from qa_chain.py
+        history = get_session_history(session_id, GOOGLE_CREDENTIALS_JSON)
         history.clear()
         logging.info(f"Cleared session {session_id}")
         return {"message": f"Session {session_id} cleared successfully"}
@@ -182,7 +181,5 @@ logging.basicConfig(
 
 if __name__ == "__main__":
     import uvicorn
-    # When deploying to Render, the port will be provided by the environment,
-    # so listen on 0.0.0.0 and use the PORT environment variable if available.
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=port)

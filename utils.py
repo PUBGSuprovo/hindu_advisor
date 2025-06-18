@@ -1,6 +1,7 @@
 # utils.py
 import string
 import logging
+import re
 from typing import List
 
 # Define lists of keywords for categorization and intent detection
@@ -12,7 +13,7 @@ TASK_KEYWORDS: List[str] = [
     "guidance", "solution", "advice", "teachings", "principles", "philosophy", "answer", "explain", "meaning",
     "table", "format", "chart", "show", "give", "list", "bullet", "points", "itemize", "enumerate"
 ]
-FORMATTING_KEYWORDS: List[str] = ["table", "tabular", "chart", "format", "list", "bullet", "points", "itemize", "enumerate"]
+FORMATTING_KEYWORDS: List[str] = ["table", "tabular", "chart", "format", "list", "bullet", "points", "itemize", "enumerate", "in a table", "as a table"]
 
 
 def _clean_query(query: str) -> str:
@@ -80,7 +81,12 @@ def extract_spiritual_concept(query: str) -> str:
         "seva": ["seva", "selfless service"],
         "reincarnation": ["reincarnation", "rebirth", "samsara"],
         "maya": ["maya", "illusion", "worldly illusion"],
-        "nirvana": ["nirvana", "spiritual liberation"]
+        "nirvana": ["nirvana", "spiritual liberation"],
+        "guna": ["guna", "qualities", "modes of nature"],
+        "sanskara": ["sanskara", "impressions", "mental imprints"],
+        "sattva": ["sattva", "purity", "goodness"],
+        "rajas": ["rajas", "passion", "activity"],
+        "tamas": ["tamas", "ignorance", "darkness"]
     }
     for concept, kws in concepts.items():
         if any(k in q for k in kws):
@@ -97,14 +103,17 @@ def extract_life_problem(query: str) -> str:
     """
     q = query.lower()
     problems = {
-        "stress": ["stress", "tension", "anxiety", "worry", "overwhelmed"],
-        "anger": ["anger", "frustration", "irritation", "rage"],
-        "grief": ["grief", "loss", "sadness", "sorrow", "bereavement"],
-        "purpose": ["purpose", "meaning of life", "direction", "aim", "goal", "why am i here"],
-        "fear": ["fear", "insecurity", "doubt", "apprehension", "courage"],
-        "relationships": ["relationship", "family", "friends", "love", "conflict", "breakup", "marriage"],
-        "suffering": ["suffering", "pain", "hardship", "adversity", "misery"],
-        "decision making": ["decision", "choice", "dilemma", "confused", "uncertainty"]
+        "stress": ["stress", "tension", "anxiety", "worry", "overwhelmed", "pressure"],
+        "anger": ["anger", "frustration", "irritation", "rage", "resentment"],
+        "grief": ["grief", "loss", "sadness", "sorrow", "bereavement", "heartbreak"],
+        "purpose": ["purpose", "meaning of life", "direction", "aim", "goal", "why am i here", "lack of direction"],
+        "fear": ["fear", "insecurity", "doubt", "apprehension", "courage", "hesitation"],
+        "relationships": ["relationship", "family", "friends", "love", "conflict", "breakup", "marriage", "loneliness", "social issues"],
+        "suffering": ["suffering", "pain", "hardship", "adversity", "misery", "struggle"],
+        "decision making": ["decision", "choice", "dilemma", "confused", "uncertainty", "indecision"],
+        "materialism": ["materialism", "attachment", "desire", "greed"],
+        "ego": ["ego", "pride", "self-importance", "arrogance"],
+        "depression": ["depression", "despair", "hopelessness", "melancholy"]
     }
     for problem, kws in problems.items():
         if any(k in q for k in kws):
@@ -121,16 +130,18 @@ def extract_scripture_source(query: str) -> str:
     """
     q = query.lower()
     sources = {
-        "bhagavad gita": ["bhagavad gita", "gita"],
+        "bhagavad gita": ["bhagavad gita", "gita", "bhagwad geeta"],
         "veda": ["veda", "vedas", "rigveda", "yajurveda", "samaveda", "atharvaveda"],
         "upanishad": ["upanishad", "upanishads"],
-        "purana": ["purana", "puranas", "vishnu purana", "bhagavata purana", "garuda purana"],
-        "ramayana": ["ramayana", "ramayan"],
+        "purana": ["purana", "puranas", "vishnu purana", "bhagavata purana", "garuda purana", "skanda purana"],
+        "ramayana": ["ramayana", "ramayan", "valmiki ramayana"],
         "mahabharata": ["mahabharata", "mahabharat"],
-        "yoga sutras": ["yoga sutras", "patanjali"],
+        "yoga sutras": ["yoga sutras", "patanjali yoga sutras", "patanjali"],
         "dharma shastras": ["dharma shastras", "manu smriti"],
         "hatha yoga pradipika": ["hatha yoga pradipika"],
-        "shiva sutras": ["shiva sutras"]
+        "shiva sutras": ["shiva sutras"],
+        "brahma sutras": ["brahma sutras"],
+        "vedanta": ["vedanta"]
     }
     for source, kws in sources.items():
         if any(k in q for k in kws):
@@ -146,4 +157,43 @@ def contains_table_request(query: str) -> bool:
     Checks if the user's query explicitly asks for a table format.
     """
     q = query.lower()
-    return any(k in q for k in ["table", "tabular", "chart", "in a table", "in table format", "as a table"])
+    return any(k in q for k in FORMATTING_KEYWORDS)
+
+
+def clean_response_text(text: str) -> str:
+    """Clean up formatting issues in AI responses"""
+    if not text:
+        return text
+    
+    # Fix triple asterisks and other markdown formatting issues
+    text = text.replace('***', '**')
+    text = text.replace('****', '**')
+    text = text.replace('*****', '**')
+    
+    # Fix broken bullet points that might appear as ***
+    text = re.sub(r'^\*\*\*([^*])', r'• \1', text, flags=re.MULTILINE)
+    
+    # Clean up excessive whitespace
+    text = re.sub(r'\n\s*\n\s*\n+', '\n\n', text)  # Multiple line breaks to double
+    text = re.sub(r'[ \t]+', ' ', text)  # Multiple spaces/tabs to single space
+    text = re.sub(r'^\s+', '', text, flags=re.MULTILINE)  # Leading whitespace on lines
+    
+    # Fix common formatting issues
+    text = re.sub(r'\*\*\s*\*\*', '**', text)  # ** ** to **
+    text = re.sub(r'\*\*([^*]+)\*\*\*', r'**\1**', text)  # **text*** to **text**
+    
+    # Ensure proper sentence spacing
+    text = re.sub(r'\.([A-Z])', r'. \1', text)
+    
+    return text.strip()
+
+def clean_suggestions(suggestions: dict) -> dict:
+    """Clean up all suggestion texts"""
+    cleaned = {}
+    for key, value in suggestions.items():
+        if isinstance(value, str):
+            cleaned[key] = clean_response_text(value)
+        else:
+            cleaned[key] = value
+    return cleaned
+    

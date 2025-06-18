@@ -3,10 +3,11 @@ import requests
 import logging
 from concurrent.futures import ThreadPoolExecutor
 
+# GROQ_API_KEY is now expected to be passed as an argument to the functions
 def groq_scripture_answer(
     model_name: str,
     query: str,
-    groq_api_key: str,
+    groq_api_key: str, # ADDED API KEY AS A PARAMETER
     spiritual_concept: str = "general",
     life_problem: str = "guidance",
     scripture_source: str = "Hindu scriptures"
@@ -33,48 +34,48 @@ def groq_scripture_answer(
             "Authorization": f"Bearer {groq_api_key}",
             "Content-Type": "application/json"
         }
-        # Mapping simplified model names to actual Groq API model identifiers
-        groq_model_map = {
-            "llama": "llama3-70b-8192",
-            "mixtral": "mixtral-8x7b-32976",
-            "gemma": "gemma2-9b-it"
-        }
-        actual_model_name = groq_model_map.get(model_name.lower(), model_name)
-
-        # Crafting a concise prompt for Groq models
-        prompt_content = (
-            f"User query: '{query}'. "
-            f"Provide a concise, practical spiritual guidance or answer related to "
-            f"**{spiritual_concept}** for **{life_problem}**, referencing "
-            f"**{scripture_source}** if applicable. Be brief and to the point."
+        
+        # Craft a prompt specifically for Groq models to give concise suggestions
+        # Tailored to the extracted spiritual_concept, life_problem, and scripture_source
+        system_message = (
+            f"You are a highly concise spiritual advisor focused on {scripture_source}. "
+            f"Provide a brief, practical insight related to '{spiritual_concept}' and '{life_problem}'."
+            f"Keep your response under 50 words and avoid conversational filler."
         )
+        
         payload = {
-            "model": actual_model_name,
-            "messages": [{"role": "user", "content": prompt_content}],
-            "temperature": 0.5, # Balanced creativity
-            "max_tokens": 250   # Keep responses concise
+            "model": f"{model_name}-8b-it" if model_name == "llama" else model_name,
+            "messages": [
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": query}
+            ],
+            "temperature": 0.3, # Keep temperature low for concise, direct answers
+            "max_tokens": 100 # Adjust max_tokens to control response length
         }
-        logging.info(f"Calling Groq API: {actual_model_name} for query: '{query}'")
-        response = requests.post(url, headers=headers, json=payload, timeout=15) # Reduced timeout slightly
-        response.raise_for_status() # Raises HTTPError for bad responses (4xx or 5xx)
+
+        response = requests.post(url, headers=headers, json=payload, timeout=10) # Added timeout
+        response.raise_for_status() # Raise an exception for HTTP errors (4xx or 5xx)
+
         data = response.json()
-        return data['choices'][0]['message']['content'] if 'choices' in data and data['choices'] else f"Empty response from {model_name}."
+        answer = data["choices"][0]["message"]["content"]
+        logging.info(f"Fetched Groq answer from {model_name}.")
+        return answer
     except requests.exceptions.Timeout:
-        logging.warning(f"Timeout error from Groq model {model_name} for query: '{query}'")
-        return f"Timeout error from {model_name}."
+        logging.error(f"Groq API call to {model_name} timed out for query: '{query}'.")
+        return f"Groq ({model_name}) timed out."
     except requests.exceptions.RequestException as e:
-        logging.error(f"Request error from Groq model {model_name} for query '{query}': {e}")
-        return f"Request error from {model_name}: {e}"
+        logging.error(f"Groq API call to {model_name} failed: {e} for query: '{query}'.", exc_info=True)
+        return f"Groq ({model_name}) error: {e}"
     except Exception as e:
-        logging.error(f"Unexpected error from Groq model {model_name} for query '{query}': {e}")
-        return f"Error from {model_name}: {e}"
+        logging.error(f"Unexpected error with Groq API for {model_name}: {e}", exc_info=True)
+        return f"Groq ({model_name}) unexpected error."
 
 def cached_groq_answers(
     query: str,
     groq_api_key: str,
-    spiritual_concept: str,
-    life_problem: str,
-    scripture_source: str
+    spiritual_concept: str = "general",
+    life_problem: str = "guidance",
+    scripture_source: str = "Hindu scriptures"
 ) -> dict:
     """
     Fetches and caches Groq answers from multiple models concurrently.
@@ -108,6 +109,8 @@ def cached_groq_answers(
             try:
                 results[model_name] = future.result()
             except Exception as e:
-                logging.error(f"Error fetching result for Groq model {model_name}: {e}")
-                results[model_name] = f"Failed to get answer: {e}"
+                logging.error(f"Error fetching Groq answer for {model_name}: {e}", exc_info=True)
+                results[model_name] = f"Error: {e}"
+    logging.info("Completed fetching Groq answers.")
     return results
+

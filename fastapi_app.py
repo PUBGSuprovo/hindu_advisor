@@ -19,7 +19,6 @@ from utils import (
     merge_groq_and_rag_answers # MODIFIED: Imported from utils
 )
 from groq_api import cached_groq_answers
-from langchain_google_sheets_chat_message_history import GoogleSheetChatMessageHistory # NEW: Direct import for history management
 import uuid
 from fastapi.middleware.cors import CORSMiddleware
 

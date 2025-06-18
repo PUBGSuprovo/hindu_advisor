@@ -1,25 +1,33 @@
 # --- Core Framework ---
-streamlit==1.34.0
 python-dotenv==1.0.1
+fastapi==0.111.0 # Ensure this is up-to-date and compatible
+uvicorn==0.30.1
 
 # --- HTTP ---
 requests==2.31.0
 
 # --- LangChain Ecosystem ---
-langchain==0.1.16
-langchain-community==0.0.34
-langchain-core==0.1.46
-langchain-google-genai==0.0.8
+langchain==0.2.5
+langchain-community==0.2.5
+langchain-core==0.2.10
+langchain-google-genai==0.0.17
 
 # --- Embeddings & Vector DB ---
-sentence-transformers==2.6.1
-chromadb==0.4.24
-huggingface-hub==0.21.4  # Required by HuggingFaceEmbeddings
+chromadb==0.5.3
+huggingface-hub==0.21.4 # Required for downloading the DB from Hugging Face
 
-# --- Google GenAI SDK ---
+# --- Google GenAI SDK (explicitly listed for clarity, though langchain-google-genai brings it) ---
 google-generativeai==0.3.2
 
-# --- Logging & Utilities (usually standard but explicitly safe) ---
+# --- Google Sheets Integration ---
+gspread==6.0.0
+google-auth-oauthlib==1.2.0
+google-api-python-client==2.131.0
+google-auth==2.30.0
+
+# --- PDF Loading ---
+pypdf==4.2.0
+
+# --- Utilities (usually standard but explicitly safe) ---
 tqdm==4.66.2
 typing-extensions>=4.5.0
-fastapi>=0.110.0

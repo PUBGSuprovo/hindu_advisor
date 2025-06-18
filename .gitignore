@@ -1,0 +1,37 @@
+# Virtual environment
+.venv/
+venv/
+
+# Streamlit config
+.streamlit/
+
+# App-specific build/output folders
+hindu_advisor_app/
+db/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Environment variables
+.env
+
+# VSCode settings (if you use it)
+.vscode/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
+
+# Jupyter Notebook checkpoints (if used)
+.ipynb_checkpoints/
+
+# PDF input/output (optional, if they are large/static)
+pdfs/

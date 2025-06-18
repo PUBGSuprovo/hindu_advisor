@@ -2,9 +2,9 @@
 import os
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import Chroma
-from langchain_google_genai import GoogleGenerativeAIEmbeddings # Changed import
+from langchain_google_genai import GoogleGenerativeAIEmbeddings # Changed import for Gemini Embeddings
 from langchain.text_splitter import CharacterTextSplitter
-import logging
+import logging # Import logging
 import google.generativeai as genai # Needed for genai.configure
 from dotenv import load_dotenv # For local environment variables
 
@@ -45,14 +45,14 @@ def load_all_pdfs(folder_path: str) -> list:
 def main():
     """
     Main function to load PDFs, split them into chunks, generate embeddings,
-    and persist the vector store using ChromaDB.
+    and persist the vector store in ChromaDB using Google Gemini Embeddings.
     """
-    pdf_dir = "pdfs"
-    output_dir = "db"
+    pdf_dir = "pdfs" # Ensure your PDFs are in a folder named 'pdfs'
+    output_dir = "db" # The local directory where ChromaDB will be saved
 
     gemini_api_key = os.getenv("GEMINI_API_KEY")
     if not gemini_api_key:
-        logging.critical("GEMINI_API_KEY is not set. Please set it in your environment or .env file.")
+        logging.critical("GEMINI_API_KEY is not set. Please set it in your environment or .env file. Exiting.")
         return
 
     # Configure Gemini for embedding initialization
@@ -66,9 +66,10 @@ def main():
     raw_docs = load_all_pdfs(pdf_dir)
 
     if not raw_docs:
-        logging.error("No documents to process. Exiting.")
+        logging.error("No documents to process. Exiting init_embeddings.py.")
         return
 
+    # Using CharacterTextSplitter, adjust chunk_size and chunk_overlap as needed
     splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     chunks = splitter.split_documents(raw_docs)
     logging.info(f"📚 Total chunks after splitting: {len(chunks)}")
@@ -77,15 +78,19 @@ def main():
         logging.error("No chunks generated from documents. Check splitter configuration or document content. Exiting.")
         return
 
+    # Initialize Google Gemini embedding model
     try:
-        embedding = GoogleGenerativeAIEmbeddings(model="embedding-001", google_api_key=gemini_api_key) # Changed here
-        logging.info("Initialized GoogleGenerativeAIEmbeddings model: embedding-001")
+        # Using "models/embedding-001" for text embeddings with Gemini
+        embedding = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=gemini_api_key)
+        logging.info("Initialized GoogleGenerativeAIEmbeddings model: models/embedding-001")
     except Exception as e:
-        logging.critical(f"Failed to initialize embedding model: {e}. Exiting.")
+        logging.critical(f"Failed to initialize embedding model: {e}. Exiting.", exc_info=True)
         return
 
+    # Create and persist the vector store in ChromaDB
     logging.info(f"Creating and persisting vector store in '{output_dir}'...")
     try:
+        # Chroma.from_documents creates the database, adds documents, and persists it
         Chroma.from_documents(
             documents=chunks,
             embedding=embedding,
@@ -93,7 +98,8 @@ def main():
         ).persist()
         logging.info(f"✅ Vector store successfully created and persisted in '{output_dir}'")
     except Exception as e:
-        logging.critical(f"Failed to create or persist ChromaDB: {e}. Ensure permissions are correct.")
+        logging.critical(f"Failed to create or persist ChromaDB: {e}. Ensure permissions are correct and disk space is available.", exc_info=True)
 
 if __name__ == "__main__":
     main()
+

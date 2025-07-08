@@ -1,6 +1,3 @@
-# Please paste your FastAPI code here.
-
-
 import os
 import json
 import logging
@@ -10,10 +7,10 @@ import string
 import re
 import base64
 import asyncio
-import httpx # MODIFICATION: Using httpx for async requests
+import httpx # Using httpx for async requests
 from datetime import datetime
 from functools import lru_cache
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor # Still used for synchronous Groq in older version, but async httpx is preferred
 from typing import Optional, List, Dict, Any, Union
 
 from fastapi import FastAPI, Request, HTTPException
@@ -29,9 +26,7 @@ from langchain_google_genai import GoogleGenerativeAIEmbeddings, GoogleGenerativ
 from langchain_core.callbacks.base import BaseCallbackHandler
 from langchain.prompts import PromptTemplate
 from langchain_core.runnables.history import RunnableWithMessageHistory
-from langchain_community.chat_message_histories import ChatMessageHistory # For in-memory
-# MODIFICATION: Example import for robust session management
-# from langchain_community.chat_message_histories import RedisChatMessageHistory 
+from langchain_community.chat_message_histories import ChatMessageHistory 
 from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
@@ -42,7 +37,7 @@ from langchain_core.prompt_values import StringPromptValue
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-# --- Consolidated: Custom Callback for LangChain ---
+# --- Custom Callback for LangChain ---
 class SafeTracer(BaseCallbackHandler):
     """
     A custom LangChain callback handler to safely log chain outputs.
@@ -56,7 +51,7 @@ class SafeTracer(BaseCallbackHandler):
             elif isinstance(outputs, StringPromptValue): 
                 logging.info(f"🔁 Chain ended. PromptValue content snippet: {outputs.text[:100]}...")
             elif isinstance(outputs, dict):
-                # MODIFICATION: Handle AgentAction Pydantic model logging
+                # Handle AgentAction Pydantic model logging
                 if 'thought' in outputs:
                      logging.info(f"🔁 Chain ended. AgentAction thought: {outputs['thought']}")
                 elif "answer" in outputs:
@@ -76,7 +71,7 @@ class SafeTracer(BaseCallbackHandler):
             logging.error(f"❌ Error in on_chain_end callback: {e}")
 
 
-# --- Consolidated: Vector Database Setup & Download ---
+# --- Vector Database Setup & Download ---
 def download_and_extract_db_for_app():
     """
     Downloads and extracts a prebuilt ChromaDB from a HuggingFace URL.
@@ -94,7 +89,7 @@ def download_and_extract_db_for_app():
 
     try:
         logging.info("⬇️ Downloading Chroma DB zip from HuggingFace...")
-        # MODIFICATION: Using standard requests here is fine as it's a startup task, not in the request path.
+        # Using requests here is fine as it's a startup task, not in the request path.
         with requests.get(url, stream=True, timeout=120) as r:
             r.raise_for_status()
             with open(zip_path, 'wb') as f:
@@ -152,7 +147,7 @@ def setup_vector_database(chroma_db_directory: str = "/tmp/chroma_db", in_memory
         logging.exception("❌ Vector DB setup failed.")
         raise
 
-# --- MODIFICATION: Asynchronous Groq Integration ---
+# --- Asynchronous Groq Integration ---
 async def _groq_diet_answer_single_async(client: httpx.AsyncClient, model_name: str, groq_api_key: str, prompt_content: str) -> str:
     """Helper function to call a single Groq model asynchronously with retries."""
     groq_model_map = {
@@ -170,7 +165,7 @@ async def _groq_diet_answer_single_async(client: httpx.AsyncClient, model_name: 
         "max_tokens": 250
     }
     
-    # MODIFICATION: Simple retry logic
+    # Simple retry logic
     for attempt in range(2): # Retry once
         try:
             response = await client.post(url, headers=headers, json=payload, timeout=30)
@@ -215,15 +210,13 @@ async def cached_groq_answers_async(query: str, groq_api_key: str, dietary_type:
     return dict(zip(models, results_list))
 
 
-# --- Consolidated: LangChain Chain Definitions ---
+# --- LangChain Chain Definitions ---
 llm_chains_session_store = {} 
 
 def get_session_history(session_id: str) -> ChatMessageHistory:
     """
     Retrieves or creates a LangChain ChatMessageHistory for a given session ID.
-    MODIFICATION: Includes commented-out example for a persistent Redis store.
     """
-    # --- In-Memory Store (Default) ---
     if session_id not in llm_chains_session_store:
         logging.info(f"Creating new Langchain session history in 'llm_chains_session_store' for: {session_id}")
         llm_chains_session_store[session_id] = ChatMessageHistory()
@@ -231,13 +224,6 @@ def get_session_history(session_id: str) -> ChatMessageHistory:
         logging.info(f"Retrieving existing Langchain session history from 'llm_chains_session_store' for: {session_id}")
     return llm_chains_session_store[session_id]
     
-    # --- Persistent Redis Store (Example for Production) ---
-    # To use this, you would need a Redis instance and the `redis` and `langchain-redis` packages.
-    # redis_url = os.getenv("REDIS_URL")
-    # if not redis_url:
-    #     raise ValueError("REDIS_URL environment variable not set for persistent session history.")
-    # return RedisChatMessageHistory(session_id, url=redis_url)
-
 
 def define_rag_prompt_template():
     """Defines the prompt template for the RAG chain."""
@@ -358,8 +344,7 @@ def define_merge_prompt_templates():
         PromptTemplate(template=merge_prompt_table_template, input_variables=["rag_section", "additional_suggestions_section", "dietary_type", "goal", "region"])
     )
 
-# --- Consolidated: Query Analysis and Intent Detection (now primarily for sub-tool use) ---
-# These functions are simple heuristics used by the agent to generate tool inputs.
+# --- Query Analysis and Intent Detection (primarily for sub-tool use) ---
 @lru_cache(maxsize=128)
 def extract_diet_preference(query: str) -> str:
     q = query.lower()
@@ -401,35 +386,11 @@ def detect_sentiment(llm_instance: GoogleGenerativeAI, query: str) -> str:
         logging.error(f"Error detecting sentiment for query '{query}': {e}", exc_info=True)
         return "neutral"
 
-# --- MODIFICATION: Pydantic Models for Tool Input Validation ---
-class GenerateDietPlanInput(BaseModel):
-    dietary_type: str = Field(default="any", description="e.g., 'vegetarian', 'non-vegetarian', 'vegan', 'any'")
-    goal: str = Field(default="diet", description="e.g., 'weight loss', 'weight gain', 'diet'")
-    region: str = Field(default="Indian", description="e.g., 'South Indian', 'Punjabi', 'Indian'")
-    wants_table: bool = Field(default=False, description="True if user wants a markdown table.")
-
-class ReformatDietPlanInput(BaseModel):
-    # MODIFICATION: Agent now passes the content to reformat directly.
-    content_to_reformat: str = Field(..., description="The previous AI-generated diet plan text that needs reformatting.")
-    wants_table: bool = Field(..., description="The desired format (True for table, False for default text).")
-    # Adding these to maintain context for the merge prompt
-    dietary_type: str = Field(default="any")
-    goal: str = Field(default="diet")
-    region: str = Field(default="Indian")
-
-class FetchRecipeInput(BaseModel):
-    recipe_name: str = Field(..., min_length=3, description="The name of the recipe to fetch, e.g., 'Dal Makhani'.")
-
-class LookupNutritionInput(BaseModel):
-    food_item: str = Field(..., min_length=3, description="The food item to look up, e.g., 'rice'.")
-
-
-# --- New: Placeholder Tools for Agent ---
+# --- Placeholder Tools for Agent ---
 async def tool_fetch_recipe(recipe_name: str) -> str:
     """Placeholder tool to simulate fetching a recipe."""
     logging.info(f"Executing tool: fetch_recipe for '{recipe_name}'")
     await asyncio.sleep(0.5) 
-    # ... (rest of the tool logic is unchanged)
     if "dal makhani" in recipe_name.lower():
         return f"Recipe for {recipe_name}: Ingredients - Black lentils, kidney beans, butter, cream, tomatoes, ginger-garlic paste. Steps - Soak, boil, temper, simmer. Serve hot with naan or rice."
     elif "paneer tikka" in recipe_name.lower():
@@ -443,7 +404,6 @@ async def tool_lookup_nutrition_facts(food_item: str) -> str:
     """Placeholder tool to simulate looking up nutrition facts."""
     logging.info(f"Executing tool: lookup_nutrition_facts for '{food_item}'")
     await asyncio.sleep(0.5)
-    # ... (rest of the tool logic is unchanged)
     clean_food_item = food_item.lower().strip()
     if "rice" in clean_food_item:
         return f"Nutrition facts for {food_item} (per 100g cooked): Calories: 130, Carbs: 28g, Protein: 2.7g, Fat: 0.3g."
@@ -492,7 +452,7 @@ class AgentAction(BaseModel):
     tool_input: Optional[Dict[str, Any]] = Field(None, description="A dictionary of parameters for the selected tool.")
     final_answer: Optional[str] = Field(None, description="The final answer to the user's request. Only set this if the task is complete.")
 
-# --- MODIFICATION: Updated Agentic Orchestrator Prompt ---
+# --- Updated Agentic Orchestrator Prompt ---
 ORCHESTRATOR_PROMPT_TEMPLATE = """
 You are an intelligent AI agent named AAHAR, specialized in Indian diet and nutrition.
 Your goal is to assist users with their diet-related queries by thinking step-by-step, deciding on appropriate actions, and providing comprehensive answers.
@@ -554,7 +514,9 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 FASTAPI_SECRET_KEY = os.getenv("FASTAPI_SECRET_KEY", "a_very_secure_random_key_CHANGE_THIS_IN_PRODUCTION")
 GOOGLE_CREDS_JSON = os.getenv("GOOGLE_CREDS_JSON")
-GOOGLE_SHEET_NAME = os.getenv("GOOGLE_SHEET_NAME", "Diet Suggest Logs")
+# Using GOOGLE_SHEET_ID for more robust sheet identification
+GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID") 
+GOOGLE_SHEET_NAME = os.getenv("GOOGLE_SHEET_NAME", "Diet Suggest Logs") # Fallback name
 
 # --- Logging Setup ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -567,18 +529,27 @@ logging.getLogger('langchain_chroma').setLevel(logging.WARNING)
 sheet = None
 sheet_enabled = False
 try:
-    if GOOGLE_CREDS_JSON:
+    if GOOGLE_CREDS_JSON and GOOGLE_SHEET_ID:
+        # Strip whitespace before decoding, as padding errors can be caused by extra chars
         creds_dict = json.loads(base64.b64decode(GOOGLE_CREDS_JSON.strip()).decode('utf-8')) 
         creds = ServiceAccountCredentials.from_json_keyfile_dict(
             creds_dict,
             ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
         )
         gs_client = gspread.authorize(creds)
-        sheet = gs_client.open(GOOGLE_SHEET_NAME).sheet1
+        # Use open_by_key for more reliable sheet access
+        sheet = gs_client.open_by_key(GOOGLE_SHEET_ID).sheet1
         sheet_enabled = True
         logging.info("✅ Google Sheets connected for logging.")
     else:
-        logging.warning("⚠️ GOOGLE_CREDS_JSON environment variable not set. Google Sheets disabled.")
+        if not GOOGLE_CREDS_JSON:
+            logging.warning("⚠️ GOOGLE_CREDS_JSON environment variable not set. Google Sheets disabled.")
+        if not GOOGLE_SHEET_ID:
+            logging.warning("⚠️ GOOGLE_SHEET_ID environment variable not set. Google Sheets disabled.")
+except (json.JSONDecodeError, UnicodeDecodeError, base64.binascii.Error) as e:
+    logging.warning(f"⚠️ Error decoding or parsing GOOGLE_CREDS_JSON: {e}. Google Sheets disabled. Please check your base64 encoding for this environment variable.")
+except gspread.exceptions.SpreadsheetNotFound:
+    logging.warning(f"⚠️ Google Sheet with ID '{GOOGLE_SHEET_ID}' not found. Check ID and permissions. Google Sheets disabled.")
 except Exception as e:
     logging.warning(f"⚠️ Google Sheets connection failed: {e}. Logging to sheet disabled.", exc_info=True)
 
@@ -586,12 +557,13 @@ except Exception as e:
 app = FastAPI(
     title="Indian Diet Recommendation API",
     description="A backend API for personalized Indian diet suggestions using RAG and LLMs.",
-    version="0.4.0", # MODIFICATION: Version bump
+    version="0.4.0", # Version bump for improvements
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # MODIFICATION: Should be restricted in production
+    # IMPORTANT: In production, replace "*" with specific frontend origins (e.g., ["https://yourfrontend.com"])
+    allow_origins=["*"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -616,8 +588,18 @@ async def startup_event():
     if not GEMINI_API_KEY:
         raise EnvironmentError("GEMINI_API_KEY is not set.")
     
-    llm_gemini = GoogleGenerativeAI(model="gemini-1.5-flash", google_api_key=GEMINI_API_KEY, temperature=0.5)
-    llm_orchestrator = GoogleGenerativeAI(model="gemini-1.5-flash", google_api_key=GEMINI_API_KEY, temperature=0.1)
+    llm_gemini = GoogleGenerativeAI(
+        model="gemini-1.5-flash", 
+        google_api_key=GEMINI_API_KEY, 
+        temperature=0.5,
+        max_output_tokens=1000 # Control output length for main responses
+    )
+    llm_orchestrator = GoogleGenerativeAI(
+        model="gemini-1.5-flash", 
+        google_api_key=GEMINI_API_KEY, 
+        temperature=0.1, # Very low temperature for consistent JSON output
+        max_output_tokens=250 # Control output length for agent decisions
+    )
     logging.info("✅ Gemini LLMs initialized.")
 
     download_and_extract_db_for_app()
@@ -673,7 +655,7 @@ async def chat(chat_request: ChatRequest, request: Request):
     if not all([llm_gemini, llm_orchestrator, conversational_qa_chain]):
         raise HTTPException(status_code=503, detail="AI services are not ready. Please try again later.")
 
-    # MODIFICATION: Sentiment detection moved before the agent loop
+    # Sentiment detection moved before the agent loop
     sentiment = detect_sentiment(llm_orchestrator, user_query)
     logging.info(f"Sentiment for query '{user_query}': {sentiment}")
 
@@ -686,7 +668,7 @@ async def chat(chat_request: ChatRequest, request: Request):
     response_text = "I'm sorry, I couldn't process your request. Please try again."
 
     try:
-        # MODIFICATION: Added a 30-second timeout for the entire agent loop
+        # Added a 30-second timeout for the entire agent loop
         async with asyncio.timeout(30):
             for i in range(max_agent_iterations):
                 logging.info(f"🔄 Agent Iteration {i+1}/{max_agent_iterations}")
@@ -726,21 +708,32 @@ async def chat(chat_request: ChatRequest, request: Request):
                         break
                     
                     elif tool_name == "generate_diet_plan":
+                        # Validate input using Pydantic model
                         validated_input = GenerateDietPlanInput(**tool_input_dict)
+                        
+                        # Invoke RAG chain
                         rag_output = await conversational_qa_chain.ainvoke({
                             "query": user_query, "chat_history": chat_history_lc, **validated_input.model_dump()
                         }, config={"callbacks": [SafeTracer()], "configurable": {"session_id": session_id}})
                         
+                        # Invoke Groq models asynchronously
                         groq_output = await cached_groq_answers_async(user_query, GROQ_API_KEY, **validated_input.model_dump())
                         
+                        # Determine merge prompt based on user's table request
                         merge_prompt = merge_prompt_table if validated_input.wants_table else merge_prompt_default
+                        
+                        # Prepare input for the merge prompt
                         merge_input = {
                             "rag_section": f"Primary RAG Answer:\n{rag_output}",
                             "additional_suggestions_section": "\n".join([f"- {k.title()} Suggestion: {v}" for k, v in groq_output.items()]),
                             **validated_input.model_dump()
                         }
+                        
+                        # Invoke LLM to merge results
                         merged_result = await llm_gemini.ainvoke(merge_prompt.format(**merge_input), config={"callbacks": [SafeTracer()]})
                         tool_output = merged_result.content if isinstance(merged_result, AIMessage) else str(merged_result)
+                        response_text = tool_output # This tool now always provides the final answer for diet generation
+                        break # Diet generation is considered a terminal action for the agent loop
                     
                     elif tool_name == "reformat_diet_plan":
                         validated_input = ReformatDietPlanInput(**tool_input_dict)
@@ -749,17 +742,26 @@ async def chat(chat_request: ChatRequest, request: Request):
                             merge_prompt.format(
                                 rag_section=f"Previous Answer to Reformat:\n{validated_input.content_to_reformat}",
                                 additional_suggestions_section="No new suggestions needed, just reformat the above.",
-                                **validated_input.model_dump()
+                                # Pass these to maintain context for the merge prompt
+                                dietary_type=validated_input.dietary_type,
+                                goal=validated_input.goal,     
+                                region=validated_input.region,    
                             ), config={"callbacks": [SafeTracer()]})
                         tool_output = reformat_result.content if isinstance(reformat_result, AIMessage) else str(reformat_result)
+                        response_text = tool_output
+                        break
 
                     elif tool_name == "fetch_recipe":
                         validated_input = FetchRecipeInput(**tool_input_dict)
                         tool_output = await tool_fetch_recipe(validated_input.recipe_name)
+                        response_text = tool_output # Direct answer, so set as final response
+                        break # Task complete
                     
                     elif tool_name == "lookup_nutrition_facts":
                         validated_input = LookupNutritionInput(**tool_input_dict)
                         tool_output = await tool_lookup_nutrition_facts(validated_input.food_item)
+                        response_text = tool_output # Direct answer, so set as final response
+                        break # Task complete
                     
                     else:
                         tool_output = f"Error: Unknown tool '{tool_name}' requested."
@@ -804,3 +806,4 @@ if __name__ == "__main__":
     import uvicorn
     logging.info("🚀 Starting FastAPI application locally...")
     uvicorn.run("fastapi_app:app", host="0.0.0.0", port=int(os.getenv("PORT", 10000)), reload=True)
+
